@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>極簡時間戳記日誌（超省力版）</title>
+<style>
+:root{
+  --bg:#f4f4f4; --card:#ffffff; --text:#111; --muted:#666;
+  --line:#e6e6e6; --accent:#111; --chip:#f0f0f0;
+  --shadow: 0 10px 30px rgba(0,0,0,.08);
+  --radius:16px; --paper:none;
+  --font: system-ui, -apple-system, "Noto Sans TC", sans-serif;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);}
+.wrap{max-width:940px;margin:0 auto;padding:18px;}
+.topbar{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:10;background-image:var(--paper);}
+h1{font-size:18px;margin:0;}
+.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:13px;}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end;}
+select,button,input[type="text"]{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:12px;padding:10px 12px;font-size:14px;outline:none;}
+button{cursor:pointer;transition:opacity .15s;}
+button:active{opacity:.7;}
+button.primary{background:var(--accent);color:white;border-color:var(--accent);}
+.grid{display:grid;grid-template-columns:1fr;gap:12px;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);background-image:var(--paper);}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.time{font-weight:700;}
+textarea{width:100%;margin-top:10px;padding:12px;border-radius:14px;border:1px solid var(--line);background:transparent;color:var(--text);min-height:64px;font-size:15px;line-height:1.4;resize:vertical;font-family:var(--font);outline:none;}
+textarea:focus{border-color:var(--accent);}
+.small{color:var(--muted);font-size:13px;margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+input[type="number"]{width:68px;padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:14px;outline:none;}
+.sectionTitle{font-weight:700;margin:0 0 8px 0;font-size:14px;color:var(--muted);}
+.stickerbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.sticker{font-size:20px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);cursor:pointer;transition:transform .1s;}
+.sticker:hover{transform:scale(1.15);}
+.quickbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.chip{border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:6px 10px;font-size:14px;cursor:pointer;user-select:none;transition:background .15s;}
+.chip:hover{background:var(--line);}
+.suggestWrap{margin-top:10px;}
+.suggestTitle{font-size:13px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.suggestList{display:flex;gap:6px;flex-wrap:wrap;}
+.suggest{border:1px dashed var(--line);background:transparent;border-radius:999px;padding:6px 10px;font-size:14px;cursor:pointer;transition:background .15s;}
+.suggest:hover{background:var(--chip);}
+.suggest strong{font-weight:800;}
+.hint{color:var(--muted);font-size:12px;}
+
+/* Themes */
+body[data-theme="minimal"]{
+  --bg:#f4f4f4;--card:#ffffff;--text:#111;--muted:#666;
+  --line:#e6e6e6;--accent:#111;--chip:#f0f0f0;--paper:none;
+}
+body[data-theme="dark"]{
+  --bg:#0f1115;--card:#171a21;--text:#f3f5f7;--muted:#aab2bd;
+  --line:#2a2f3a;--accent:#f3f5f7;--chip:#1f2430;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+body[data-theme="cream"]{
+  --bg:#fbf6ee;--card:#ffffff;--text:#1b1b1b;--muted:#7a6f63;
+  --line:#efe0cf;--accent:#c06a3a;--chip:#fff1e1;
+  --paper: radial-gradient(circle at 1px 1px, rgba(0,0,0,.03) 1px, transparent 0);
+  background-size: 18px 18px;
+}
+body[data-theme="paper"]{
+  --bg:#f7f3ea;--card:#fffdf7;--text:#1a1a1a;--muted:#6b6256;
+  --line:#eadfcf;--accent:#2b4c7e;--chip:#f3eadc;
+  --paper: linear-gradient(transparent 95%, rgba(0,0,0,.04) 96%);
+  background-size: 100% 26px;
+}
+
+@media(max-width:600px){
+  .topbar{flex-direction:column;gap:6px;}
+  .controls{justify-content:flex-start;}
+}
+</style>
+</head>
+<body data-theme="minimal">
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <h1 id="todayTitle">今天</h1>
+      <div class="meta" id="weekInfo"></div>
+    </div>
+    <div class="controls">
+      <select id="themeSel" title="風格">
+        <option value="minimal">極簡白</option>
+        <option value="dark">深色冷感</option>
+        <option value="cream">可愛奶油</option>
+        <option value="paper">手帳紙感</option>
+      </select>
+      <select id="thresholdSel" title="高分門檻">
+        <option value="6">抓 ≥ 6</option>
+        <option value="7">抓 ≥ 7</option>
+        <option value="8" selected>抓 ≥ 8</option>
+        <option value="9">抓 ≥ 9</option>
+        <option value="10">抓 ≥ 10</option>
+      </select>
+      <button class="primary" id="addBtn">＋ 新增</button>
+      <button id="exportBtn">匯出 JSON</button>
+      <button id="wipeBtn">清空</button>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <p class="sectionTitle">本週統計（B）＋高能量/高心流時段（C）</p>
+      <div id="stats"></div>
+    </div>
+    <div class="card">
+      <p class="sectionTitle">常用清單（點一下貼到最新一筆）</p>
+      <div class="row">
+        <input id="favInput" type="text" placeholder="新增常用句（例如：門診、家事收拾、陪玩…）" style="flex:1;min-width:220px;">
+        <button id="addFavBtn">加入常用</button>
+      </div>
+      <div class="quickbar" id="favBar"></div>
+      <div class="meta">超省力用法：直接打幾個字，下方候選點一下就完成。</div>
+    </div>
+    <div id="entries"></div>
+  </div>
+</div>
+<script>
+const KEY = "daylog_v3";
+const THEME_KEY = "daylog_theme_v3";
+const THRESH_KEY = "daylog_threshold_v3";
+const FAV_KEY = "daylog_favorites_v3";
+const MEM_KEY = "daylog_memory_v3";
+const LAST_CAT_KEY = "daylog_last_cat_v3";
+
+const CATEGORIES = ["家事","工作","親子","休閒","運動","休息"];
+const STICKERS = ["🩺","✨","🔥","🎧","📌","🥤","😵‍💫","🧠","✅","🫠","👶","🍼","🧹","📚","🛌","🏃"];
+const DEFAULT_FAVS = ["門診", "行政/寫病歷", "家事收拾", "陪玩/陪讀", "運動一下", "休息補眠", "錄音/剪輯"];
+
+const pad2 = n => String(n).padStart(2,"0");
+const fmtDate = d => `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())}`;
+const fmtTime = d => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+const isoDate = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+const clamp = (v,min,max) => Math.max(min, Math.min(max, v));
+
+function save(key, obj){ localStorage.setItem(key, JSON.stringify(obj)); }
+function load(key){ try{ return JSON.parse(localStorage.getItem(key) || "{}"); } catch(e){ return {}; } }
+
+function startOfWeek(date){
+  const d = new Date(date);
+  const day = (d.getDay()+6)%7;
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate()-day);
+  return d;
+}
+function endOfWeek(date){
+  const s = startOfWeek(date);
+  const e = new Date(s);
+  e.setDate(e.getDate()+6);
+  e.setHours(23,59,59,999);
+  return e;
+}
+
+function timeBucket(hour){
+  if(hour>=6 && hour<9) return "06-09";
+  if(hour>=9 && hour<12) return "09-12";
+  if(hour>=12 && hour<15) return "12-15";
+  if(hour>=15 && hour<18) return "15-18";
+  if(hour>=18 && hour<21) return "18-21";
+  if(hour>=21 && hour<24) return "21-24";
+  return "00-06";
+}
+
+function escapeHtml(str){
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+// ====== State ======
+const state = {
+  entries: load(KEY).entries || [],
+  theme: localStorage.getItem(THEME_KEY) || "minimal",
+  threshold: parseInt(localStorage.getItem(THRESH_KEY) || "8", 10),
+  favorites: load(FAV_KEY).favorites || DEFAULT_FAVS,
+  memory: load(MEM_KEY).memory || [],
+  lastCat: localStorage.getItem(LAST_CAT_KEY) || "工作",
+};
+
+const entriesEl = document.getElementById("entries");
+const statsEl = document.getElementById("stats");
+const todayTitle = document.getElementById("todayTitle");
+const weekInfo = document.getElementById("weekInfo");
+const themeSel = document.getElementById("themeSel");
+const thresholdSel = document.getElementById("thresholdSel");
+const favBar = document.getElementById("favBar");
+const favInput = document.getElementById("favInput");
+
+function persistAll(){
+  save(KEY, {entries: state.entries});
+  save(FAV_KEY, {favorites: state.favorites});
+  save(MEM_KEY, {memory: state.memory});
+  localStorage.setItem(THEME_KEY, state.theme);
+  localStorage.setItem(THRESH_KEY, String(state.threshold));
+  localStorage.setItem(LAST_CAT_KEY, state.lastCat);
+}
+
+// ====== 超省力：候選生成 ======
+function normalize(s){ return (s||"").trim().toLowerCase(); }
+
+function addToMemorySentence(text){
+  const t = (text||"").trim();
+  if(!t) return;
+  if(t.length > 60) return;
+  const now = Date.now();
+  const key = normalize(t);
+  const i = state.memory.findIndex(x => normalize(x.t) === key);
+  if(i >= 0){
+    state.memory[i].n = (state.memory[i].n || 0) + 1;
+    state.memory[i].last = now;
+  }else{
+    state.memory.unshift({t, n:1, last: now});
+  }
+  state.memory = state.memory
+    .sort((a,b)=> (b.n - a.n) || (b.last - a.last))
+    .slice(0,120);
+  persistAll();
+}
+
+function getSuggestions(query, limit=10){
+  const q = normalize(query);
+  const pool = [];
+  state.favorites.forEach(t=> pool.push({t, score: 9999}));
+  state.memory.forEach(x=>{
+    const s = (x.n||0)*10 + Math.min(50, Math.floor((Date.now()- (x.last||0))/86400000) * -1);
+    pool.push({t: x.t, score: s});
+  });
+  const seen = new Set();
+  const uniq = [];
+  for(const item of pool){
+    const k = normalize(item.t);
+    if(seen.has(k)) continue;
+    seen.add(k);
+    uniq.push(item);
+  }
+  let filtered = uniq;
+  if(q){
+    filtered = uniq.filter(x => normalize(x.t).includes(q));
+    filtered.sort((a,b)=>{
+      const ap = normalize(a.t).startsWith(q) ? 0 : 1;
+      const bp = normalize(b.t).startsWith(q) ? 0 : 1;
+      if(ap !== bp) return ap - bp;
+      return (b.score - a.score);
+    });
+  }else{
+    filtered.sort((a,b)=> b.score - a.score);
+  }
+  return filtered.slice(0, limit).map(x=>x.t);
+}
+
+// ====== UI ======
+function renderHeader(){
+  const now = new Date();
+  todayTitle.textContent = `今天 ${fmtDate(now)}`;
+  const ws = startOfWeek(now);
+  const we = endOfWeek(now);
+  weekInfo.textContent = `本週：${fmtDate(ws)} ～ ${fmtDate(we)}（週一～週日）｜門檻：≥ ${state.threshold}｜新增預設分類：${state.lastCat}`;
+}
+
+function setTheme(t){ document.body.dataset.theme = t; }
+
+function addEntry(){
+  const now = new Date();
+  const entry = {
+    id: crypto.randomUUID(),
+    ts: now.toISOString(),
+    text: "",
+    category: state.lastCat || "工作",
+    flow: null,
+    energy: null,
+    stickers: [],
+  };
+  state.entries.unshift(entry);
+  persistAll();
+  render();
+}
+
+function updateEntry(id, patch){
+  const i = state.entries.findIndex(e => e.id === id);
+  if(i === -1) return;
+  state.entries[i] = {...state.entries[i], ...patch};
+  persistAll();
+  renderStats();
+}
+
+function toggleSticker(id, emoji){
+  const e = state.entries.find(x => x.id===id);
+  if(!e) return;
+  const set = new Set(e.stickers || []);
+  if(set.has(emoji)) set.delete(emoji); else set.add(emoji);
+  updateEntry(id, {stickers: Array.from(set)});
+  renderEntries();
+}
+
+function renderFavorites(){
+  favBar.innerHTML = "";
+  state.favorites.forEach((t, idx)=>{
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = t;
+    chip.title = "點一下貼到最新一筆；右鍵/長按刪除";
+    chip.addEventListener("click", ()=>{
+      if(state.entries.length === 0) addEntry();
+      const e = state.entries[0];
+      const next = (e.text || "").trim();
+      const add = t.trim();
+      const merged = next ? (next + (next.endsWith("。")||next.endsWith("！")||next.endsWith("？") ? "" : " ") + add) : add;
+      updateEntry(e.id, {text: merged});
+      renderEntries();
+    });
+    chip.addEventListener("contextmenu", (ev)=>{
+      ev.preventDefault();
+      if(confirm(`刪除常用句：「${t}」？`)){
+        state.favorites.splice(idx,1);
+        persistAll();
+        renderFavorites();
+      }
+    });
+    favBar.appendChild(chip);
+  });
+}
+
+function addFavorite(text){
+  const t = (text || "").trim();
+  if(!t) return;
+  const k = normalize(t);
+  if(state.favorites.some(x=>normalize(x)===k)) return;
+  state.favorites.unshift(t);
+  persistAll();
+  renderFavorites();
+}
+
+function highlightMatch(text, q){
+  const s = text;
+  const qq = (q||"").trim();
+  if(!qq) return escapeHtml(s);
+  const idx = s.toLowerCase().indexOf(qq.toLowerCase());
+  if(idx < 0) return escapeHtml(s);
+  const a = escapeHtml(s.slice(0, idx));
+  const b = escapeHtml(s.slice(idx, idx+qq.length));
+  const c = escapeHtml(s.slice(idx+qq.length));
+  return `${a}<strong>${b}</strong>${c}`;
+}
+
+function renderEntries(){
+  entriesEl.innerHTML = "";
+  state.entries.forEach(entry => {
+    const d = new Date(entry.ts);
+    const card = document.createElement("div");
+    card.className = "card";
+    const stickersLine = (entry.stickers || []).join(" ");
+    const flowVal = entry.flow ?? "";
+    const energyVal = entry.energy ?? "";
+
+    card.innerHTML = `
+      <div class="row">
+        <div class="time">${fmtTime(d)}</div>
+        <div class="meta">${isoDate(d)}</div>
+        <div class="meta">${stickersLine ? "貼紙：" + stickersLine : ""}</div>
+      </div>
+      <div class="small">
+        分類：
+        <select data-cat style="padding:8px 10px;">
+          ${CATEGORIES.map(c=>`<option value="${c}" ${c===entry.category?"selected":""}>${c}</option>`).join("")}
+        </select>
+      </div>
+      <textarea placeholder="我現在在做什麼？（打兩個字就會出候選）" data-ta>${escapeHtml(entry.text || "")}</textarea>
+      <div class="suggestWrap" data-swrap>
+        <div class="suggestTitle">
+          <span>候選（點一下直接補完）</span>
+          <span class="hint">提示：輸入越多，你越不用打字</span>
+        </div>
+        <div class="suggestList" data-slist></div>
+      </div>
+      <div class="small">
+        心流(0-10)：<input data-k="flow" type="number" min="0" max="10" value="${flowVal}">
+        精力(0-10)：<input data-k="energy" type="number" min="0" max="10" value="${energyVal}">
+        <span class="meta">（≥ ${state.threshold} 才算高分）</span>
+      </div>
+      <div class="small">貼紙（點一下就貼/取消）</div>
+      <div class="stickerbar">
+        ${STICKERS.map(s=>`<span class="sticker" data-st="${s}">${s}</span>`).join("")}
+      </div>
+    `;
+
+    const catSel = card.querySelector("[data-cat]");
+    catSel.addEventListener("change", ()=>{
+      state.lastCat = catSel.value;
+      updateEntry(entry.id, {category: catSel.value});
+      persistAll();
+      renderHeader();
+    });
+
+    const ta = card.querySelector("[data-ta]");
+    const slist = card.querySelector("[data-slist]");
+
+    function paintSuggestions(){
+      const q = ta.value.trim();
+      const sugg = getSuggestions(q, 10);
+      slist.innerHTML = "";
+      if(sugg.length === 0){
+        slist.innerHTML = `<span class="hint">（沒有候選，繼續打，系統會學）</span>`;
+        return;
+      }
+      sugg.forEach(t=>{
+        const b = document.createElement("button");
+        b.className = "suggest";
+        b.type = "button";
+        b.innerHTML = highlightMatch(t, q);
+        b.addEventListener("click", ()=>{
+          ta.value = t;
+          updateEntry(entry.id, {text: ta.value});
+          addToMemorySentence(ta.value);
+          paintSuggestions();
+          ta.focus();
+          ta.setSelectionRange(ta.value.length, ta.value.length);
+        });
+        slist.appendChild(b);
+      });
+    }
+
+    ta.addEventListener("focus", paintSuggestions);
+    ta.addEventListener("input", ()=>{
+      updateEntry(entry.id, {text: ta.value});
+      paintSuggestions();
+    });
+    ta.addEventListener("blur", ()=>{
+      addToMemorySentence(ta.value);
+    });
+    paintSuggestions();
+
+    card.querySelectorAll("input[type=number]").forEach(inp=>{
+      inp.addEventListener("input", ()=>{
+        const k = inp.dataset.k;
+        const v = inp.value === "" ? null : clamp(parseInt(inp.value,10), 0, 10);
+        updateEntry(entry.id, {[k]: isNaN(v) ? null : v});
+      });
+    });
+
+    card.querySelectorAll("[data-st]").forEach(btn=>{
+      btn.addEventListener("click", ()=> toggleSticker(entry.id, btn.dataset.st));
+    });
+
+    entriesEl.appendChild(card);
+  });
+}
+
+function renderStats(){
+  const now = new Date();
+  const ws = startOfWeek(now);
+  const we = endOfWeek(now);
+  const thr = state.threshold;
+
+  const weekly = state.entries.filter(e=>{
+    const t = new Date(e.ts);
+    return t >= ws && t <= we;
+  });
+
+  const nums = (arr)=>arr.filter(v=>typeof v==="number" && !isNaN(v));
+  const flows = nums(weekly.map(e=>e.flow));
+  const energies = nums(weekly.map(e=>e.energy));
+  const avg = a => a.length ? (a.reduce((s,x)=>s+x,0)/a.length) : null;
+  const avgFlow = avg(flows);
+  const avgEnergy = avg(energies);
+  const flowHi = weekly.filter(e=>typeof e.flow==="number" && e.flow>=thr).length;
+  const energyHi = weekly.filter(e=>typeof e.energy==="number" && e.energy>=thr).length;
+
+  const bucketsEnergy = {};
+  const bucketsFlow = {};
+  weekly.forEach(e=>{
+    const h = new Date(e.ts).getHours();
+    const b = timeBucket(h);
+    if(typeof e.energy==="number" && e.energy>=thr) bucketsEnergy[b] = (bucketsEnergy[b]||0)+1;
+    if(typeof e.flow==="number" && e.flow>=thr) bucketsFlow[b] = (bucketsFlow[b]||0)+1;
+  });
+  const sortBuckets = o => Object.entries(o).sort((a,b)=>b[1]-a[1]);
+
+  const catCount = {};
+  weekly.forEach(e=>{
+    const c = e.category || "未分類";
+    catCount[c] = (catCount[c]||0)+1;
+  });
+  const catSorted = Object.entries(catCount).sort((a,b)=>b[1]-a[1]);
+
+  statsEl.innerHTML = `
+    <div class="meta">本週紀錄：${weekly.length} 筆 | 門檻：≥ ${thr}</div>
+    <div class="meta">平均心流：${avgFlow===null?"—":avgFlow.toFixed(1)} | 平均精力：${avgEnergy===null?"—":avgEnergy.toFixed(1)}</div>
+    <div class="meta">高心流（≥${thr}）：${flowHi} 筆 | 高精力（≥${thr}）：${energyHi} 筆</div>
+    <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
+    <div class="meta"><b>高精力時段</b>：${
+      sortBuckets(bucketsEnergy).length ? sortBuckets(bucketsEnergy).map(([b,c])=>`${b}（${c}）`).join(" ") : "—"
+    }</div>
+    <div class="meta"><b>高心流時段</b>：${
+      sortBuckets(bucketsFlow).length ? sortBuckets(bucketsFlow).map(([b,c])=>`${b}（${c}）`).join(" ") : "—"
+    }</div>
+    <div class="meta"><b>分類分佈</b>：${
+      catSorted.length ? catSorted.map(([c,n])=>`${c}（${n}）`).join(" ") : "—"
+    }</div>
+  `;
+}
+
+function render(){
+  renderHeader();
+  renderFavorites();
+  renderEntries();
+  renderStats();
+}
+
+// ====== Controls ======
+document.getElementById("addBtn").addEventListener("click", addEntry);
+
+document.getElementById("wipeBtn").addEventListener("click", ()=>{
+  if(confirm("確定要清空所有紀錄？（不可復原）")){
+    state.entries = [];
+    persistAll();
+    render();
+  }
+});
+
+document.getElementById("exportBtn").addEventListener("click", ()=>{
+  const blob = new Blob([JSON.stringify({
+    entries: state.entries,
+    favorites: state.favorites,
+    memory: state.memory,
+    threshold: state.threshold,
+    theme: state.theme,
+    lastCat: state.lastCat
+  }, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `daylog_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById("addFavBtn").addEventListener("click", ()=>{
+  addFavorite(favInput.value);
+  favInput.value = "";
+  favInput.focus();
+});
+
+themeSel.addEventListener("change", ()=>{
+  state.theme = themeSel.value;
+  setTheme(state.theme);
+  persistAll();
+});
+
+thresholdSel.addEventListener("change", ()=>{
+  state.threshold = parseInt(thresholdSel.value, 10);
+  persistAll();
+  renderHeader();
+  renderStats();
+});
+
+// ====== Init ======
+themeSel.value = state.theme;
+thresholdSel.value = String(state.threshold);
+setTheme(state.theme);
+render();
+
+if(state.entries.length === 0){
+  addEntry();
+}
+</script>
+</body>
+</html>
